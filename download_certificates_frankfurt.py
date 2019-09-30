@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import requests
 
 url = "https://api.boerse-frankfurt.de/search/derivative_search"
