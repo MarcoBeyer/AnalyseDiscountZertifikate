@@ -61,5 +61,10 @@ headers = {
 response = requests.request("POST", url, data=payload, headers=headers)
 timestr = time.strftime("%Y_%m_%d-%H_%M")
 dataframe = pd.DataFrame(json.loads(response.text)["data"])
-dataframe = dataframe.dropna(axis = "columns", how="all")
+dataframe = dataframe.rename(columns = {"isin": "ISIN",
+                                        "cap": "Cap", 
+                                        "evaluationDay": "Bewertungstag", 
+                                        "issuerName": "Emittent", 
+                                        "ask": "Brief", 
+                                        "bid": "Geld"})[["ISIN", "Cap", "Bewertungstag", "Emittent", "Brief", "Geld"]]
 dataframe.to_csv("Discount_Frankfurt_" + timestr + ".csv", index = False)

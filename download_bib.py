@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import numpy
 import random
 import concurrent.futures
@@ -7,11 +8,10 @@ import numpy as np
 import pandas as pd
 import asyncio
 import aiofiles
-from aiohttp import ClientSession
+from aiohttp import ClientSession, TCPConnector
 
-download_path = 'bib2'
+download_path = 'bib'
 filename = 'Discount_Frankfurt_2019_09_30-14_20.csv'
-discount_certificates = pd.read_csv(filename)
 num_workers = 10
 
 def get_url_bib(isin, issuerName):
@@ -38,7 +38,7 @@ def get_url_bib(isin, issuerName):
     elif ("HSBC" in issuerName):
         return "https://kid.hsbc-zertifikate.de/DE/{}.pdf".format(isin)
     # J.P Morgan
-    elif ("J.P.Morgan" in issuerName):
+    elif ("J.P. Morgan" in issuerName):
         return "https://priips.jpmorgan.com/priips/document/{}/DE/pop".format(isin)
     # Landesbank Baden-Württemberg
     elif ("Landesbank Baden-Württemberg" in issuerName):
@@ -65,20 +65,22 @@ def get_url_bib(isin, issuerName):
 
 async def download(session, url, filename):
     async with session.get(url) as response:
-        async with aiofiles.open(filename, 'wb') as fd:
-            while True:
-                chunk = await response.content.read(1024)
-                if not chunk:
-                    break
-                await fd.write(chunk)
-        return await response.release()
+        if response.status == 200:
+            async with aiofiles.open(filename, 'wb') as fd:
+                content = await response.read()
+                await fd.write(content)
+        else:
+            async with aiofiles.open("log.txt", 'a') as fd:
+                fd.write("Status " + str(response.status) + " for url: " + url + "\n")
 
 async def download_bib(session, isin, issuername):
     url = get_url_bib(isin, issuername)
     return await download(session, url, download_path + "/" + str(isin) + ".pdf")
 
 async def managed_download(isin_issuernames):
-    async with ClientSession() as session:
+    # max connections per thread to one host
+    connector = TCPConnector(limit_per_host=1, limit = 10)
+    async with ClientSession(connector = connector) as session:
         return await asyncio.gather(*(download_bib(session, isin, issuername) 
                                       for isin, issuername in isin_issuernames))
 
@@ -88,12 +90,17 @@ def download_multiple_isins(isin_issuernames):
     return loop.run_until_complete(managed_download(isin_issuernames))
 
 async def main_run(loop):
+    discount_certificates = pd.read_csv(filename)
+    # get already downloaded files
+    files = os.listdir(download_path)
+    #remove all rows with already downloaded KID
+    discount_certificates = discount_certificates[~discount_certificates['ISIN'].isin([s.strip('.pdf') for s in files])]
     # list of the isins and issuer of the BIB to download
-    to_download = list(zip(discount_certificates['isin'], discount_certificates['issuerName']))
+    to_download = list(zip(discount_certificates['ISIN'], discount_certificates['Emittent']))
     #shuffle list to download from issuers in a random order
     #so the requests will not getting blocked by one issuer
     random.shuffle(to_download)
-    to_download_splitted = np.array_split(to_download[0:10], num_workers)
+    to_download_splitted = np.array_split(to_download, num_workers)
     
     with concurrent.futures.ThreadPoolExecutor(max_workers = num_workers) as executor:
         futures = [
@@ -107,5 +114,8 @@ async def main_run(loop):
         for response in await asyncio.gather(*futures):
             pass
 
-loop = asyncio.get_event_loop()
-task = loop.create_task(main_run(loop))
+asyncio.run(main_run())
+
+#debug
+#main_loop = asyncio.get_event_loop()
+#task = main_loop.create_task(main_run(main_loop))

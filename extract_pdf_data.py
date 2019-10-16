@@ -18,7 +18,7 @@ def pdf_to_text(path):
         # PDFMiner boilerplate
         rsrcmgr = PDFResourceManager()
         sio = StringIO()
-        device = TextConverter(rsrcmgr, sio, codec='utf-8', laparams=LAParams(line_margin=100))
+        device = TextConverter(rsrcmgr, sio, codec='utf-8', laparams=LAParams(line_margin=100, word_margin = 0.4))
         interpreter = PDFPageInterpreter(rsrcmgr, device)
           # get text from file
         for page in PDFPage.get_pages(file):
@@ -36,10 +36,13 @@ def extract_bib_informations(text):
     print(risikoklasse)
     #Einstiegskosten
     einstiegskosten = re.search(r"(Einmalige Kosten|Einstiegskosten)[^0-9-]*([0-9,-]+)", text, re.MULTILINE).group(2)
+    print(einstiegskosten)
     #Ausstiegskosten
     ausstiegskosten = re.search(r"(inbegriffenen Kosten|Ausstiegskosten)(?!.*\n*Einstiegskosten)[^,][^0-9-]*([0-9,-]+)", text, re.MULTILINE).group(2)
+    print(ausstiegskosten)
     #Erstelldatum
-    erstelldatum = re.search(r"(Letzte Aktualisierung|datum|Erstellungszeit|Stand:)[^0-9]*([0-9]*[0-9][.]*[^0-9]*[0-9.]+)(?!.*Letzte Aktualisierung)", text, re.IGNORECASE | re.MULTILINE).group(2)
+    erstelldatum = re.search(r"(Letzte Aktualisierung|datum|Erstellungszeit|Stand:|Überarbeitung des)[^0-9]*([0-9]*[0-9][.]*[^0-9]*[0-9.]+)(?!.*Letzte Aktualisierung)", text, re.IGNORECASE | re.MULTILINE).group(2)
+    print(erstelldatum)
     return text
 
 files = os.listdir("bib")
