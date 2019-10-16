@@ -11,7 +11,7 @@ import aiofiles
 from aiohttp import ClientSession, TCPConnector
 
 download_path = 'bib'
-filename = 'Discount_Frankfurt_2019_09_30-14_20.csv'
+filename = 'Discount_Certificates.csv'
 num_workers = 10
 
 def get_url_bib(isin, issuerName):
@@ -81,7 +81,7 @@ async def managed_download(isin_issuernames):
     # max connections per thread to one host
     connector = TCPConnector(limit_per_host=1, limit = 10)
     async with ClientSession(connector = connector) as session:
-        return await asyncio.gather(*(download_bib(session, isin, issuername) 
+        return await asyncio.gather(*(download_bib(session, isin, issuername)
                                       for isin, issuername in isin_issuernames))
 
 def download_multiple_isins(isin_issuernames):
@@ -101,12 +101,12 @@ async def main_run(loop):
     #so the requests will not getting blocked by one issuer
     random.shuffle(to_download)
     to_download_splitted = np.array_split(to_download, num_workers)
-    
+
     with concurrent.futures.ThreadPoolExecutor(max_workers = num_workers) as executor:
         futures = [
             loop.run_in_executor(
-                executor, 
-                download_multiple_isins, 
+                executor,
+                download_multiple_isins,
                 to_download_part
             )
             for to_download_part in to_download_splitted
