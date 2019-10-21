@@ -33,7 +33,7 @@ def get_url_bib(isin, issuerName):
         return "https://www.xmarkets.db.com/DE/DE/KID/{}".format(isin)
     # Goldman, Sachs & Co. Wertpapier GmbH
     elif ("Goldman Sachs" in issuerName):
-        return "https://www.gspriips.eu/?isin={}&lang=DE&cnt=DE".format(isin)
+        return "https://www.gspriips.eu?isin={}&lang=DE&cnt=DE".format(isin)
     # HSBC Trinkaus & Burkhardt AG
     elif ("HSBC" in issuerName):
         return "https://kid.hsbc-zertifikate.de/DE/{}.pdf".format(isin)
@@ -49,7 +49,7 @@ def get_url_bib(isin, issuerName):
             isin)
     # Société Générale Effekten GmbH
     elif ("Société Générale" in issuerName):
-        return "http://kid.sgmarkets.com/isin/{}/ger".format(isin)
+        return "https://kid.sgmarkets.com/isin/{}/ger".format(isin)
     # UBS AG
     elif ("UBS AG" in issuerName):
         return "https://kid.ubs.com/product/generate_pdf?id_type=isin&id_value={}&locale=de_DE&channel_key=554af-d8b923-by4560-r854br".format(isin)
@@ -70,9 +70,9 @@ async def download(session, url, filename):
                 content = await response.read()
                 await fd.write(content)
         else:
-            async with aiofiles.open("log.txt", 'a') as fd:
-                fd.write("Status " + str(response.status) + " for url: " + url + "\n")
-
+            print("Status " + str(response.status) + " for url: " + url + "\n")
+            await response.release()
+            
 async def download_bib(session, isin, issuername):
     url = get_url_bib(isin, issuername)
     return await download(session, url, download_path + "/" + str(isin) + ".pdf")
@@ -80,6 +80,7 @@ async def download_bib(session, isin, issuername):
 async def managed_download(isin_issuernames):
     # max connections per thread to one host
     connector = TCPConnector(limit_per_host=1, limit = 10)
+
     async with ClientSession(connector = connector) as session:
         return await asyncio.gather(*(download_bib(session, isin, issuername)
                                       for isin, issuername in isin_issuernames))
@@ -89,7 +90,7 @@ def download_multiple_isins(isin_issuernames):
     asyncio.set_event_loop(loop)
     return loop.run_until_complete(managed_download(isin_issuernames))
 
-async def main_run(loop):
+async def main_run():
     discount_certificates = pd.read_csv(filename)
     # get already downloaded files
     files = os.listdir(download_path)
@@ -97,11 +98,12 @@ async def main_run(loop):
     discount_certificates = discount_certificates[~discount_certificates['ISIN'].isin([s.strip('.pdf') for s in files])]
     # list of the isins and issuer of the BIB to download
     to_download = list(zip(discount_certificates['ISIN'], discount_certificates['Emittent']))
+    print(str(len(to_download)) + " files are left to download")
     #shuffle list to download from issuers in a random order
     #so the requests will not getting blocked by one issuer
     random.shuffle(to_download)
     to_download_splitted = np.array_split(to_download, num_workers)
-
+    loop = asyncio.get_event_loop()
     with concurrent.futures.ThreadPoolExecutor(max_workers = num_workers) as executor:
         futures = [
             loop.run_in_executor(
