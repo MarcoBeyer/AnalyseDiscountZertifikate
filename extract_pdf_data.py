@@ -10,8 +10,11 @@ from pdfminer.pdfpage import PDFPage
 from pdfminer.converter import TextConverter
 from pdfminer.layout import LAParams
 from io import StringIO
+import pandas as pd
 import re
 import os
+
+path = "bib_test_2"
 
 def pdf_to_text(path):
     with open(path, 'rb') as file:
@@ -31,23 +34,41 @@ def pdf_to_text(path):
     return text
 
 def extract_bib_informations(text):
+    values = {}
     #Risikoklasse
     risikoklasse = re.search(r"in[^d]*die[^R]*Risikoklasse[^0-7]*([0-7])", text, re.MULTILINE).group(1)
+    values['risikoklasse'] = risikoklasse
     print(risikoklasse)
     #Einstiegskosten
     einstiegskosten = re.search(r"(Einmalige Kosten|Einstiegskosten)[^0-9-]*([0-9,-]+)", text, re.MULTILINE).group(2)
+    values['einstiegskosten'] = einstiegskosten
     print(einstiegskosten)
     #Ausstiegskosten
     ausstiegskosten = re.search(r"(inbegriffenen Kosten|Ausstiegskosten)(?!.*\n*Einstiegskosten)[^,][^0-9-]*([0-9,-]+)", text, re.MULTILINE).group(2)
     print(ausstiegskosten)
+    values['ausstiegskosten'] = ausstiegskosten
     #Erstelldatum
     erstelldatum = re.search(r"(Letzte Aktualisierung|datum|Erstellungszeit|Stand:|Überarbeitung des)[^0-9]*([0-9]*[0-9][.]*[^0-9]*[0-9.]+)(?!.*Letzte Aktualisierung)", text, re.IGNORECASE | re.MULTILINE).group(2)
     print(erstelldatum)
-    return text
+    values['erstelldatum'] = erstelldatum
+    #Bezugsverhältnis
+    bezugsverhaeltnis = re.search(r"((?<!dem |das )Bezugsverhältnis|Das Ergebnis wird mit)[^0-9.]*([0-9.,]* (Indexpunkte|EUR)\n|[0-9.]*\n)*([0-9,]+)", text, re.MULTILINE).group(4)
+    print(bezugsverhaeltnis)
+    gesamtkosten = re.search(r"(?<!EUR\n)(?<!EUR  )(?<!- )(?<!-)(?<!\)\)\n)(?<!0\n)(?<!EUR )(Gesamtkosten|Szenarien|einlösen)\n*(?!Gesamtkosten)((EUR )*[0-9,-]+( EUR)*[^AG]*)", text, re.MULTILINE).group(2)
+    #remove new lines add the end
+    gesamtkosten = gesamtkosten.replace(' ', '\n').replace('EUR','').replace('\n\n','\n').strip("\n\r").split('\n')
+    print(gesamtkosten)
+    relative_gesamtkosten = re.search(r"(?<!%\n)(Auswirkung auf die Rendite|Auswirkung auf die Rendite \(RIY\)|Auswirkung auf die Rendite \(RIY\) pro|Auswirkung auf die Rendite \(RIY\) pro Jahr|Auswirkungen auf die Rendite \(RIY\)|EUR\nGesamtkosten\nAuswirkung auf die Rendite \(RIY\) pro Jahr|EUR\nGesamtkosten|Auswirkung \n*auf|Auswirkungen auf die Rendite \(RIY\) pro Jahr) *\n*([0-9,%\n-]+[^A-Za-z\.(]*)", text, re.MULTILINE).group(2)
+    relative_gesamtkosten = relative_gesamtkosten.replace('%','').replace(' ', '\n').replace('\n\n','\n').strip("\n\r").split('\n')
+    print(relative_gesamtkosten)
+    return values
 
-files = os.listdir("bib")
+data = pd.DataFrame()
+files = os.listdir(path)
+text=""
 for file in files:
     print(file)
-    text = pdf_to_text("bib/" + file)
+    text = pdf_to_text(path + "/" + file).replace('p. a.', '')
     informations = extract_bib_informations(text)
+    data = data.append(informations, ignore_index = True)
 
