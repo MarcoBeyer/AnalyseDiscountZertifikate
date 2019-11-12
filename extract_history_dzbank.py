@@ -34,5 +34,5 @@ for file in files:
         print('keine Tabelle in ' + file)
         not_found.append(file)
 print('Finished\n Not found:\n'+ str(not_found))
-data.to_csv('history_dzbank.csv')
+data.to_csv('history_dzbank.csv', ignore_index = True)
 
