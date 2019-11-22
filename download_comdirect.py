@@ -42,6 +42,10 @@ csv = csv.append(download_comdirect_discount_csv(54283))
 # rename and select columns
 csv = csv.rename(columns = {"Fälligkeit" : "Bewertungstag"})
 csv = csv[["ISIN", "Cap", "Bewertungstag", "Emittent", "Brief", "Geld"]]
+#Convert to english format
+csv['Geld'] = csv['Geld'].str.replace('.', '').str.replace(',','.')
+csv['Brief'] = csv['Brief'].str.replace('.', '').str.replace(',','.')
+csv['Cap'] = csv['Cap'].str.replace('.', '').str.replace(',','.')
 
 timestr = time.strftime("%Y_%m_%d-%H_%M")
 

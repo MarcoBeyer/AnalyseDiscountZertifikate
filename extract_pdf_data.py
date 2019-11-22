@@ -67,8 +67,8 @@ def extract_bib_informations(text):
         text, re.MULTILINE).group(4)
     values['bezugsverhaeltnis'] = bezugsverhaeltnis
     gesamtkosten = re.search(
-        r"(?<!EUR\n)(?<!EUR  )(?<!Haltedauer \(Fälligkeit\)\n)(?<!- )(?<!-)(?<!\)\)\n)(?<!0\n)(?<!EUR )("
-        r"Gesamtkosten|Szenarien|einlösen)\n*(?!Gesamtkosten)((EUR )*[0-9,-]+( EUR)*[^AG]*)",
+        r"(?<!EUR  )(?<!Haltedauer \(Fälligkeit\)\n)(?<!- )(?<!-)(?<!\)\)\n)(?<!0\n)(?<!EUR\n)(?<!EUR )"
+        r"(Szenarien|einlösen|Gesamtkosten)\n*((EUR )*[0-9,-]+( EUR)*[^AG]*)", 
         text, re.MULTILINE).group(2)
     # remove new lines add the end
     gesamtkosten = gesamtkosten.replace(' ', '\n').replace('EUR', '').replace('\n\n', '\n').strip("\n\r").split('\n')
@@ -84,6 +84,27 @@ def extract_bib_informations(text):
         "\n\r").split('\n')
     for i in range(len(relative_gesamtkosten)):
         values['relative_gesamtkosten_' + str(i)] = relative_gesamtkosten[len(relative_gesamtkosten) - 1 - i]
+    #cleanup of special cases for easier regex
+    mittleres_szenario = re.sub(r' EUR','\n', text)
+    mittleres_szenario = re.sub(r'EUR ','', mittleres_szenario)
+    mittleres_szenario = re.sub(r'\n[\n]+','\n', mittleres_szenario)
+    mittleres_szenario = re.sub(r',–', '', mittleres_szenario)
+    mittleres_szenario = re.sub(r'[ ]?(Was|Sie|nach|Abzug|der|Kosten|erhalten|könn[t]?en)[ ]?\n?', '', mittleres_szenario)
+    mittleres_szenario = re.sub(r'[0-9,-]*%\n', '', mittleres_szenario)
+    mittleres_szenario = re.search(
+        r"(Mittleres[ ]*(Szenario)?[\n]*([0-9.,]+[\n]*)+|([0-9.,]+[\n]*)+Mittleres[ ]*Szenario)",
+        mittleres_szenario, re.MULTILINE).group(1)
+    mittleres_szenario = mittleres_szenario.replace(' ', '')\
+                        .replace('Mittleres', '')\
+                        .replace('Szenario', '')\
+                        .strip("\n\r")\
+                        .split('\n')
+    if("Deutsche Bank AG" in text):
+        for i in range(len(mittleres_szenario)):
+            values['mittleres_szenario_' + str(i)] = mittleres_szenario[i]
+    else:
+        for i in range(len(mittleres_szenario)):
+            values['mittleres_szenario_' + str(i)] = mittleres_szenario[len(mittleres_szenario) - 1 - i]
     return values
 
 
@@ -95,13 +116,21 @@ for file in files:
     print(str(i) + '/' + str(len(files)))
     print(file)
     try:
-        # file='DE000VS043B2.pdf'
-        text = pdf_to_text(path + "/" + file).replace('p. a.', '')
+        #file='DE000HX4D1G9.pdf'
+        text = pdf_to_text(path + "/" + file)
+        # Text bereinigen
+        text = text.replace('p. a.', '')
+        text = text.replace('\x0c', '')
+        text = re.sub(r'Seite [0-9]', '', text)
+        text = re.sub(r'DocID:[^\n]*', '' , text)
+        #remove empty lines
+        text = re.sub(r'^\n', '', text, flags = re.MULTILINE)
+
         informations = extract_bib_informations(text)
         informations['ISIN'] = file.strip('.pdf')
         data = data.append(informations, ignore_index=True)
     except:
         errors.append(file)
         print('Error in File ' + file)
-data.to_csv('BIB_Informationen_neu.csv', index=False)
+data.to_csv('BIB_Informationen_neu_2.csv', index=False)
 print(errors)
