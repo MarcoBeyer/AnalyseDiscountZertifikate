@@ -14,8 +14,12 @@ from pdfminer.layout import LAParams
 
 
 errors = []
-#path = "D:/Zertifikate/2020-02"
+#path = "D:/Zertifikate/2020-05"
 path = "bib_test_2"
+export_filename_csv = 'BIB-2020-05-t2.csv'
+export_filename_xlsx = 'BIB-2020-05-t2.xlsx'
+sheet_name = '2020-05'
+EXTEND = False
 
 def pdf_to_text(path):
     with open(path, 'rb') as file:
@@ -40,14 +44,22 @@ def pdf_to_text(path):
 def extract_creation_date(text):
     #Morgan Stanley
     creation_date = re.sub(r' *Uhr', '', text)
+    
+    #Goldman Sachs
+    creation_date = re.sub(r' um ', ' ', creation_date)
+    creation_date = re.sub(r'Deutschland\nZuständige Behörde', 'Erstellungszeit', creation_date)
+
+    
     creation_date = re.sub(r'Ortszeit Frankfurt am Main', '', creation_date)
     creation_date = re.sub(r'Authority\ndes Produkts', '\nErstellungszeit', creation_date)
+    creation_date = re.sub(r'[,()]','', creation_date)
     creation_date = re.search(
-            "(Herstellers des Produkts|Letzte Aktualisierung|datum|Erstellungszeit|Stand:|Überarbeitung des)[^0-9]*([0-9]*[0-9][.]*[^0-9]*["
-            "0-9.]+)(?!.*Letzte Aktualisierung)",
+            "(Herstellers des Produkts|Letzte Aktualisierung|datum|Erstellungszeit|Stand:|Überarbeitung des)"
+            "[^0-9]*([0-9]?[0-9][.]*[^0-9]*[0-9. :]+)(?!.*Letzte Aktualisierung)",
             creation_date, re.IGNORECASE|re.MULTILINE).group(2)
     creation_date = normalize_date(creation_date)    
     return creation_date
+
 
 def normalize_local_string_to_float(string):
     # remove dots
@@ -59,10 +71,14 @@ def normalize_local_string_to_float(string):
     #replace .- with .0
     string = string.replace('.–', '.0')
     return float(string)
+
     
 def extract_total_costs(text):
     total_costs = re.sub(r'Anlage EUR 10.000,00\n*', '', text)
     total_costs = re.sub(r'Szenarien\n', '', total_costs)
+    total_costs = re.sub(r'\(Empfohlene Haltedauer \(Fälligkeit\)\)', '', total_costs)
+    if re.search(r"EUR\nGesamtkosten\n[0-9, -]+EUR", total_costs):
+        total_costs = re.sub(r'EUR\nGesamtkosten', 'EUR', total_costs)
 
     total_costs = re.search(
         r"(?<!EUR  )(?<!Haltedauer \(Fälligkeit\)\n)(?<!- )(?<!-)(?<!\)\)\n)(?<!0\n)(?<!EUR\n)(?<!EUR )"
@@ -74,6 +90,7 @@ def extract_total_costs(text):
     for i in range(len(total_costs)):
         total_costs[i] = normalize_local_string_to_float(total_costs[i])
     return total_costs
+
 
 def extract_relative_total_costs(text):
     # cleanup of special cases for easier regex
@@ -108,7 +125,7 @@ def extract_relative_total_costs(text):
     relative_total_costs = re.search(
         r"(?<!%\n)("
         r"Haltedauer einlösen)"
-        r" *\n?([0-9,\n%-]+%)",
+        r" *\n?([0-9., \n%-]+%)",
         relative_total_costs, re.MULTILINE).group(2)
 
     relative_total_costs = relative_total_costs.replace('%', ' ').replace(' ', '\n')
@@ -145,7 +162,6 @@ def extract_bib_informations(text):
     values['Erstelldatum'] = extract_creation_date(text)
 
     # Gesamtkosten
-    # TODO return dict/list
     total_costs = extract_total_costs(text)
     for i in range(len(total_costs)):
         values['Gesamtkosten_' + str(i)] = total_costs[len(total_costs) - 1 - i]
@@ -159,9 +175,8 @@ def extract_bib_informations(text):
 
 data = pd.DataFrame()
 files = os.listdir(path)
-EXTEND = True
 if EXTEND:
-    data = pd.read_csv("BIB-2020-02.csv")
+    data = pd.read_csv(export_filename_csv)
     isins = data['ISIN'] + '.pdf'
     isins = isins.unique()
     isins = set(isins)
@@ -173,7 +188,7 @@ for file in files:
     print(str(i) + '/' + str(len(files)))
     print(file)
     try:
-        file='DE000DC5X7A7.pdf'
+        #file='DE000CL8VKF9.pdf'
         text = pdf_to_text(path + "/" + file)
         # Text bereinigen
         text = text.replace('p. a.', '')
@@ -186,18 +201,17 @@ for file in files:
         informations = extract_bib_informations(text)
         informations['ISIN'] = file.strip('.pdf')
         informations['Abrufdatum'] = datetime.fromtimestamp(os.path.getmtime(path + "/" + file))
-        print(informations)
+        #print(informations)
         data = data.append(informations, ignore_index=True)
     except Exception as e: 
         print(e)
         errors.append(file)
         print('Error in File ' + file)
-data['Abrufdatum'] = pd.to_datetime(data['Abrufdatum'])
-data.to_csv('BIB-2020-02.csv', index=False)
-
-with pd.ExcelWriter("BIB-2020-02.xlsx",
+#data['Abrufdatum'] = pd.to_datetime(data['Abrufdatum'])
+data.to_csv(export_filename_csv, index=False)
+with pd.ExcelWriter(export_filename_xlsx,
                     engine='xlsxwriter',
-                    datetime_format='mm.dd.yyyy hh:mm',
+                    datetime_format='dd.mm.yyyy hh:mm',
                     date_format='dd.mm.yyyy') as writer:
-    data.to_excel(writer, sheet_name = '2020-02', index = False)
+    data.to_excel(writer, sheet_name = sheet_name, index = False)
 print(errors)
