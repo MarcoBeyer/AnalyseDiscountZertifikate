@@ -48,7 +48,9 @@ def extract_creation_date(text):
     #Goldman Sachs
     creation_date = re.sub(r' um ', ' ', creation_date)
     creation_date = re.sub(r'Deutschland\nZuständige Behörde', 'Erstellungszeit', creation_date)
-
+    #J.P. Morgan
+    creation_date = re.sub(r'und der Deutschen Bundesbank\nZuständige Behörde des Herstellers\ndes Produkts', 
+                           'Erstellungszeit', creation_date)
     
     creation_date = re.sub(r'Ortszeit Frankfurt am Main', '', creation_date)
     creation_date = re.sub(r'Authority\ndes Produkts', '\nErstellungszeit', creation_date)
@@ -188,7 +190,7 @@ for file in files:
     print(str(i) + '/' + str(len(files)))
     print(file)
     try:
-        #file='DE000CL8VKF9.pdf'
+        #file='DE000JM42Y15.pdf'
         text = pdf_to_text(path + "/" + file)
         # Text bereinigen
         text = text.replace('p. a.', '')
@@ -207,7 +209,7 @@ for file in files:
         print(e)
         errors.append(file)
         print('Error in File ' + file)
-#data['Abrufdatum'] = pd.to_datetime(data['Abrufdatum'])
+
 data.to_csv(export_filename_csv, index=False)
 with pd.ExcelWriter(export_filename_xlsx,
                     engine='xlsxwriter',
